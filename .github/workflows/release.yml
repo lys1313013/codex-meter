@@ -1,0 +1,64 @@
+name: Release draft
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+      CODEX_METER_ARCH: arm64
+      CODEX_METER_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Require version-specific release notes
+        run: test -f "docs/releases/$CODEX_METER_TAG.md"
+      - name: Check and package (ad-hoc signature)
+        run: ./scripts/verify.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-package
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  draft:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-package
+          path: dist
+      - name: Create draft with checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cd dist
+          sha256sum -c ./*.sha256
+          cd ..
+          gh release create "$RELEASE_TAG" dist/*.zip dist/*.sha256 \
+            --verify-tag --draft --title "Codex Meter $RELEASE_TAG" \
+            --notes-file "docs/releases/$RELEASE_TAG.md"

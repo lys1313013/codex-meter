@@ -1,0 +1,54 @@
+# Swift/Xcode build output and per-user state
+.build/
+.swiftpm/
+build/
+dist/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.dSYM/
+*.app/
+*.dmg
+*.pkg
+*.zip
+
+# Local environment, account data and assistant/editor settings
+.env
+.env.*
+.codex/
+.claude/
+.aws/
+.ssh/
+.idea/
+.vscode/
+auth.json
+auth.json.*
+.netrc
+credentials.json
+credentials.*.json
+secrets/
+.secrets/
+
+# Signing certificates, private keys and notarization credentials
+*.p12
+*.pfx
+*.p8
+*.pem
+*.key
+*.keychain
+*.keychain-db
+*.mobileprovision
+*.provisionprofile
+id_rsa
+id_ed25519
+
+# Local diagnostics, temporary files and OS metadata
+logs/
+diagnostics/
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+._*

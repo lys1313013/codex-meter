@@ -1,0 +1,31 @@
+name: Bug report / 问题反馈
+description: 报告无法读取额度、显示或安装问题
+body:
+  - type: markdown
+    attributes:
+      value: 请勿粘贴 auth.json、token、完整服务响应或包含账号信息的截图。
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      description: macOS 版本、芯片（Apple Silicon / Intel）、Codex Meter 版本
+    validations:
+      required: true
+  - type: input
+    id: codex
+    attributes:
+      label: Codex 来源和版本
+      description: CLI / Codex 桌面版 / ChatGPT 内置 CLI；只提供版本号，不提供凭据。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤、预期结果和实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 错误提示或脱敏截图
+      description: 请先移除账号、个人路径和凭据。无须提供真实额度。
