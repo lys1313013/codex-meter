@@ -28,11 +28,32 @@ enum PreviewRenderer {
         let settings = NSHostingView(rootView: MeterSettingsView(model: model).environment(\.colorScheme, .dark))
         try save(settings, size: MeterSettingsView.windowSize, to: directory.appendingPathComponent("settings.png"))
 
-        // Illustrate the menu item with its actual formatting and typography, without capturing the desktop.
-        let menu = NSHostingView(rootView: Text(MeterPresentation.menuNumber(remaining: model.indicatorWindow?.remaining, stale: false))
-            .font(.system(size: 13, weight: .medium).monospacedDigit())
-            .foregroundStyle(.white).frame(width: 64, height: 28).background(Color(white: 0.16)))
-        try save(menu, size: NSSize(width: 64, height: 28), to: directory.appendingPathComponent("menu-bar.png"))
+        // Render the same native button used in the menu bar, including its fixed-width layout.
+        for (name, remaining, stale) in [("menu-bar", 74.0, false), ("menu-bar-low", 9.0, false),
+                                          ("menu-bar-full", 100.0, false), ("menu-bar-stale", 74.0, true)] {
+            let button = NSButton(frame: NSRect(x: 0, y: 0, width: MenuBarIndicator.width, height: 28))
+            button.isBordered = false
+            MenuBarIndicator.configure(button, remaining: remaining, stale: stale)
+            let backing = NSView(frame: button.frame)
+            backing.wantsLayer = true
+            backing.layer?.backgroundColor = NSColor(white: 0.16, alpha: 1).cgColor
+            backing.addSubview(button)
+            try save(backing, size: button.frame.size, to: directory.appendingPathComponent(name + ".png"))
+        }
+        let popover = NSHostingView(rootView: MeterView(model: model, menuBarDetails: true, showMenu: {})
+            .environment(\.colorScheme, .dark))
+        popover.layoutSubtreeIfNeeded()
+        try save(popover, size: NSSize(width: 320, height: popover.fittingSize.height),
+                 to: directory.appendingPathComponent("menu-bar-details.png"))
+        // Check both failure states with synthetic data, without changing real app preferences.
+        model.error = MeterError.timeout.localizedDescription
+        for (name, age) in [("recent-failure", 120.0), ("stale-failure", 360.0)] {
+            model.updatedAt = Date().addingTimeInterval(-age)
+            model.compact = true
+            try saveMeter(model, to: directory.appendingPathComponent(name + "-ring.png"))
+            model.compact = false
+            try saveMeter(model, to: directory.appendingPathComponent(name + "-details.png"))
+        }
         print("Rendered previews with example data: \(directory.path)")
     }
 

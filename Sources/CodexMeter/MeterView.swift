@@ -3,6 +3,7 @@ import MeterCore
 
 struct MeterView: View {
     @ObservedObject var model: MeterModel
+    var menuBarDetails = false
     let showMenu: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var accent: Color { model.palette.accent }
@@ -10,7 +11,7 @@ struct MeterView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             Group {
-                if model.compact {
+                if model.compact && !menuBarDetails {
                     compactContent
                 } else {
                     VStack(alignment: .leading, spacing: 18) {
@@ -25,8 +26,10 @@ struct MeterView: View {
         }
     }
 
-    private var dragArea: some View {
-        WindowDragArea(onDoubleClick: { model.compact.toggle() }, onMenu: showMenu)
+    @ViewBuilder private var dragArea: some View {
+        if !menuBarDetails {
+            WindowDragArea(onDoubleClick: { model.compact.toggle() }, onMenu: showMenu)
+        }
     }
 
     private var header: some View {
@@ -37,13 +40,15 @@ struct MeterView: View {
                 Text("Codex Meter").font(.system(size: 14, weight: .semibold))
                 Spacer(minLength: 0)
             }.overlay(dragArea)
-            Button { model.pinned.toggle() } label: {
-                Image(systemName: model.pinned ? "pin.fill" : "pin")
-                    .foregroundStyle(model.pinned ? accent : .secondary)
-            }.help(model.pinned ? "取消置顶" : "窗口置顶").accessibilityLabel("切换窗口置顶")
-            Button { model.compact = true } label: {
-                Image(systemName: "arrow.down.right.and.arrow.up.left")
-            }.help("收起为圆环").accessibilityLabel("切换紧凑模式")
+            if !menuBarDetails {
+                Button { model.pinned.toggle() } label: {
+                    Image(systemName: model.pinned ? "pin.fill" : "pin")
+                        .foregroundStyle(model.pinned ? accent : .secondary)
+                }.help(model.pinned ? "取消置顶" : "窗口置顶").accessibilityLabel("切换窗口置顶")
+                Button { model.compact = true } label: {
+                    Image(systemName: "arrow.down.right.and.arrow.up.left")
+                }.help("收起为圆环").accessibilityLabel("切换紧凑模式")
+            }
             Button(action: showMenu) { Image(systemName: "ellipsis") }
                 .help("设置与退出").accessibilityLabel("设置与退出")
         }
@@ -56,12 +61,14 @@ struct MeterView: View {
         let size = model.ringSize
         let width = max(3, size * 0.085)
         // One shared path for the track and progress, placed at the outer edge.
-        let inset = width / 2 + 1
+        let inset = width / 2
         let colors = model.isStale ? [Color.orange, .orange] : ringColors(remaining)
+        // Close the gradient so the round start cap cannot sample a different color across 0°.
+        let circularColors = colors + colors.prefix(1)
         return ZStack {
             Circle().stroke(.white.opacity(0.14), lineWidth: width).padding(inset)
             Circle().trim(from: 0, to: (remaining ?? 0) / 100)
-                .stroke(AngularGradient(colors: colors, center: .center, startAngle: .zero, endAngle: .degrees(360)),
+                .stroke(AngularGradient(colors: circularColors, center: .center, startAngle: .zero, endAngle: .degrees(360)),
                         style: StrokeStyle(lineWidth: width, lineCap: .round))
                 .rotationEffect(.degrees(-90)).padding(inset)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: remaining)
@@ -110,13 +117,13 @@ struct MeterView: View {
             }.padding(.vertical, 8)
         }
         if let error = model.error {
-            Text((model.response == nil ? "" : "当前显示旧数据。") + error)
+            Text((model.response == nil ? "" : (model.isStale ? "当前显示旧数据。" : "最近刷新失败，保留上次结果。")) + error)
                 .font(.system(size: 11)).foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)
         }
         Divider()
         HStack(spacing: 6) {
-            Circle().fill(model.isStale ? Color.orange : accent).frame(width: 4, height: 4)
+            Circle().fill(model.isStale || model.error != nil ? Color.orange : accent).frame(width: 4, height: 4)
             Text(statusText(now: now)).font(.system(size: 10)).foregroundStyle(.secondary)
             Spacer()
             Button { Task { await model.refresh() } } label: {
@@ -159,6 +166,6 @@ struct MeterView: View {
         if model.isRefreshing { return "正在刷新…" }
         guard let updated = model.updatedAt else { return "尚未同步" }
         let minutes = max(0, Int(now.timeIntervalSince(updated) / 60))
-        return (model.isStale ? "旧数据 · " : "") + (minutes == 0 ? "刚刚更新" : "\(minutes) 分钟前更新")
+        return (model.isStale ? "旧数据 · " : (model.error != nil ? "刷新失败 · " : "")) + (minutes == 0 ? "刚刚更新" : "\(minutes) 分钟前更新")
     }
 }

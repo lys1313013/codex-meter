@@ -75,11 +75,64 @@ do {
 } catch {
     check(true, "early child exit reports an error without terminating the host")
 }
-check(MeterPresentation.menuNumber(remaining: 74, stale: false) == "74", "menu bar contains a number without icon, name, or percent sign")
+check(MeterPresentation.menuNumber(remaining: 74, stale: false) == "74%", "menu bar includes the percentage unit")
 check(MeterPresentation.menuNumber(remaining: nil, stale: false) == "--", "unknown menu value is not zero")
 check(MeterPresentation.menuNumber(remaining: 74, stale: true) == "--", "stale menu value is not shown as live")
-check(MeterPresentation.menuNumber(remaining: 0, stale: false) == "0", "zero remaining is displayed correctly")
+check(MeterPresentation.menuNumber(remaining: 0, stale: false) == "0%", "zero remaining is displayed correctly")
 check(MeterPresentation.ringSize(5) == 40 && MeterPresentation.ringSize(200) == 120, "ring size stays within usable limits")
 check(MeterPresentation.ringSize(.nan) == 56, "invalid stored size falls back safely")
 check(multi.buckets["codex"]?.indicatorWindow?.title == "每周", "ring and menu use the most constrained quota window")
+// Retry and freshness behavior uses synthetic time and injected operations; no network or real sleeps.
+let refreshedAt = Date(timeIntervalSince1970: 1000)
+check(!RefreshPolicy.isStale(updatedAt: refreshedAt, hasError: true, now: refreshedAt.addingTimeInterval(120)), "one failed refresh keeps recent data usable")
+check(!RefreshPolicy.isStale(updatedAt: refreshedAt, hasError: true, now: refreshedAt.addingTimeInterval(300)), "five-minute boundary remains usable")
+check(RefreshPolicy.isStale(updatedAt: refreshedAt, hasError: false, now: refreshedAt.addingTimeInterval(301)), "old data expires even without a request error")
+check(RefreshPolicy.isStale(updatedAt: nil, hasError: true), "first-load failure remains visible")
+check(!RefreshPolicy.isStale(updatedAt: nil, hasError: false), "initial loading is not an error")
+
+var attempts = 0
+var retryDelays: [UInt64] = []
+let recovered = try await RefreshPolicy.fetch(operation: {
+    attempts += 1
+    if attempts == 1 { throw MeterError.timeout }
+    if attempts == 2 { throw MeterError.disconnected }
+    return weekly
+}, sleep: { retryDelays.append($0) })
+check(attempts == 3 && recovered.buckets["codex"]?.primary?.remaining == 77, "transient failures recover on the third attempt")
+check(retryDelays == [3_000_000_000, 10_000_000_000], "retries use short bounded delays")
+
+attempts = 0
+retryDelays = []
+do {
+    _ = try await RefreshPolicy.fetch(operation: {
+        attempts += 1
+        throw MeterError.server
+    }, sleep: { retryDelays.append($0) })
+    fatalError("persistent failure should throw")
+} catch MeterError.server {
+    check(attempts == 3 && retryDelays.count == 2, "persistent failures stop after two retries and preserve the error")
+}
+for failure in [MeterError.missingCLI, .invalidResponse] {
+    attempts = 0
+    retryDelays = []
+    do {
+        _ = try await RefreshPolicy.fetch(operation: {
+            attempts += 1
+            throw failure
+        }, sleep: { retryDelays.append($0) })
+        fatalError("permanent failure should throw")
+    } catch {
+        check(attempts == 1 && retryDelays.isEmpty, "configuration and protocol errors are not retried")
+    }
+}
+attempts = 0
+do {
+    _ = try await RefreshPolicy.fetch(operation: {
+        attempts += 1
+        throw MeterError.timeout
+    }, sleep: { _ in throw CancellationError() })
+    fatalError("cancelled backoff should throw")
+} catch is CancellationError {
+    check(attempts == 1, "cancelling backoff prevents another request")
+}
 print("\(count) checks passed")

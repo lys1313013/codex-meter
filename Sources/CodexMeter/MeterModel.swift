@@ -46,7 +46,7 @@ final class MeterModel: ObservableObject {
         let description = indicatorWindow.map {
             "\($0.title)剩余 \(String(format: "%.0f%%", $0.remaining ?? 0)) · \($0.resetText())"
         } ?? "暂无额度数据"
-        return description + (isStale ? " · 旧数据，请刷新" : "")
+        return description + (isStale ? " · 旧数据，请刷新" : (error != nil ? " · 最近刷新失败，保留上次结果" : ""))
     }
     var customPath: String? {
         get { defaults.string(forKey: "cliPath") }
@@ -58,7 +58,7 @@ final class MeterModel: ObservableObject {
         return response.buckets[key]
     }
     var activeID: String { response?.selectedID(preferred: selectedID) ?? "codex" }
-    var isStale: Bool { error != nil || (updatedAt.map { Date().timeIntervalSince($0) > 300 } ?? false) }
+    var isStale: Bool { RefreshPolicy.isStale(updatedAt: updatedAt, hasError: error != nil) }
     private var refreshLoop: Task<Void, Never>?
 
     func start() {
@@ -77,9 +77,14 @@ final class MeterModel: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
         do {
-            response = try await CodexClient().fetch(customPath: customPath)
+            response = try await RefreshPolicy.fetch {
+                try await CodexClient().fetch(customPath: self.customPath)
+            }
             updatedAt = Date()
             error = nil
+        } catch is CancellationError {
+            // Stopping the refresh loop is not a failed quota request.
+            return
         } catch {
             self.error = (error as? MeterError)?.localizedDescription ?? "读取失败，请检查 Codex CLI 路径和登录状态。"
         }

@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var material: MeterMaterialView!
     private var statusItem: NSStatusItem!
     private var settingsWindow: NSWindow?
+    private let statusPopover = NSPopover()
     private var subscriptions = Set<AnyCancellable>()
     private var lastPlacement: DisplayPlacement?
     private var lastCompact: Bool?
@@ -27,6 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let mainMenu = NSMenu()
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
+        let details = NSMenuItem(title: "查看额度详情", action: #selector(showDetails), keyEquivalent: "d")
+        details.target = self
+        appMenu.addItem(details)
         let settings = NSMenuItem(title: "设置…", action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
@@ -44,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = !model.compact
         panel.isMovableByWindowBackground = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         host = NSHostingView(rootView: MeterView(model: model, showMenu: { [weak self] in self?.showMenu() }))
@@ -58,11 +62,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.maxX - 100, y: screen.visibleFrame.maxY - 120))
         }
         panel.delegate = self
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: MenuBarIndicator.width)
         statusItem.button?.target = self
         statusItem.button?.action = #selector(statusClicked)
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        statusItem.button?.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
+        statusPopover.behavior = .transient
+        statusPopover.contentViewController = NSHostingController(
+            rootView: MeterView(model: model, menuBarDetails: true, showMenu: { [weak self] in
+                self?.showStatusMenu()
+            })
+        )
         model.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async { self?.updateInterface() }
         }.store(in: &subscriptions)
@@ -85,6 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard panel != nil else { return }
         updateStatusItem()
         panel.level = model.pinned ? .floating : .normal
+        panel.hasShadow = !model.compact
         host.layoutSubtreeIfNeeded()
         let size = model.compact
             ? NSSize(width: model.ringSize, height: model.ringSize)
@@ -113,9 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func updateStatusItem() {
-        statusItem.button?.image = nil
-        statusItem.button?.title = MeterPresentation.menuNumber(remaining: model.indicatorWindow?.remaining, stale: model.isStale)
-        statusItem.button?.toolTip = model.indicatorDescription + "\n点击设置显示位置和圆环大小"
+        guard let button = statusItem.button else { return }
+        MenuBarIndicator.configure(button, remaining: model.indicatorWindow?.remaining, stale: model.isStale)
+        button.toolTip = model.indicatorDescription + (model.error.map { "\n" + $0 } ?? "") + "\n左键查看额度详情 · 右键打开菜单"
         statusItem.button?.setAccessibilityLabel("Codex 剩余额度：" + model.indicatorDescription)
     }
 
@@ -136,16 +146,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func screenChanged() { keepOnScreen() }
     @objc private func wokeUp() { Task { await model.refresh() } }
     @objc private func statusClicked() {
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            showStatusMenu()
+        } else if statusPopover.isShown {
+            statusPopover.performClose(nil)
+        } else {
+            showStatusDetails()
+        }
+    }
+    private func showStatusDetails() {
+        guard let button = statusItem.button else { return }
+        statusPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        statusPopover.contentViewController?.view.window?.makeKey()
+    }
+    private func showStatusMenu() {
+        statusPopover.performClose(nil)
         guard let button = statusItem.button else { return }
         buildMenu().popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
     }
     @objc private func useDesktop() {
+        statusPopover.performClose(nil)
         model.compact = true
         model.placement = .desktop
         panel.orderFrontRegardless()
     }
     @objc private func useMenuBar() { model.placement = .menuBar }
     @objc private func showDetails() {
+        if model.placement == .menuBar {
+            showStatusDetails()
+            return
+        }
         model.compact = false
         model.placement = .desktop
         panel.orderFrontRegardless()
@@ -158,6 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.compact = true
     }
     @objc private func showSettings() {
+        statusPopover.performClose(nil)
         if settingsWindow == nil {
             let window = NSWindow(contentRect: NSRect(origin: .zero, size: MeterSettingsView.windowSize),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
@@ -200,7 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item("查看详情", #selector(showDetails))
         menu.addItem(.separator())
         item("桌面圆环", #selector(useDesktop), checked: model.placement == .desktop)
-        item("仅菜单栏数字", #selector(useMenuBar), checked: model.placement == .menuBar)
+        item("仅菜单栏", #selector(useMenuBar), checked: model.placement == .menuBar)
         item("外观与大小…", #selector(showSettings))
         let sizes = NSMenuItem(title: "圆环大小", action: nil, keyEquivalent: "")
         let sizesMenu = NSMenu()

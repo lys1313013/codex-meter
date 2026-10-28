@@ -30,7 +30,7 @@ struct MeterSettingsView: View {
                         Text(placement.title).tag(placement)
                     }
                 }.pickerStyle(.segmented)
-                Text("菜单栏仅显示剩余百分比的数字，例如 74 表示剩余 74%。")
+                Text("菜单栏显示进度环和剩余百分比；左键查看详情，右键打开菜单。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("桌面圆环") {

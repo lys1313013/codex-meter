@@ -6,10 +6,10 @@ public enum MeterPresentation {
         return min(120, max(40, value))
     }
 
-    /// A menu bar item contains only a number; unknown/stale values must not look current.
+    /// Include the unit; unknown/stale values must not look current.
     public static func menuNumber(remaining: Double?, stale: Bool) -> String {
         guard !stale, let remaining, remaining.isFinite else { return "--" }
-        return String(format: "%.0f", min(100, max(0, remaining)))
+        return String(format: "%.0f%%", min(100, max(0, remaining)))
     }
 }
 
