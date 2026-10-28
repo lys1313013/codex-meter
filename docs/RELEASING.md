@@ -19,6 +19,7 @@ CODEX_METER_TAG=v0.1.0 ./scripts/package-release.sh
 
 - `ci.yml`：main 分支提交、PR 或手动触发，运行检查并上传 14 天保留的 ZIP 和校验值。不需要账号或发布密钥。
 - `release.yml`：推送 `v*` 标签后，校验版本及发布说明，检查和打包，随后创建 **Draft Release**。不会自动公开 Release。
+- Actions 制品是临时构建结果；发布后的 Release 附件独立保存，不受上述 14 天保留设置影响，适合作为长期下载入口。删除仓库、Release 或附件会使下载失效。
 - 两个工作流均选择 `macos-15` / Xcode 26.2；更新 runner 时核对 [官方镜像工具列表](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-arm64-Readme.md)。
 - 默认只生成 ad-hoc 包。CI 不导入开发者证书，不读取 Codex 登录信息。
 
