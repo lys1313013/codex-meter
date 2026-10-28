@@ -51,15 +51,28 @@ API Key 登录不提供这里展示的 ChatGPT 订阅额度。Codex 桌面版、
 
 ### 下载应用
 
-在 [Releases](https://github.com/lys1313013/codex-meter/releases) 下载与你的芯片匹配的 ZIP，解压后将 `Codex Meter.app` 拖入 Applications 并打开。如果尚无构建资产，请使用下面的源码构建方式。
+本项目提供免费的 ZIP 安装包，安装和使用无需购买 Apple 开发者会员。当前预编译包适用于 Apple Silicon（`arm64`），采用 ad-hoc 临时签名，未经 Apple 公证；首次打开可能需要手动允许。
 
-安装包名明确标注签名状态：`adhoc` 为临时签名、未经 Apple 公证；`signed` 为正式签名但未完成公证；`notarized` 为已完成签名、公证和票据附加。默认 GitHub 工作流生成 `adhoc` 包，首次打开可能受到 Gatekeeper 限制。优先使用 `notarized` 包，或在本机从源码构建。
+1. 在本仓库的 [Releases](https://github.com/lys1313013/codex-meter/releases) 页面下载 `Codex-Meter-<版本>-macos-arm64-adhoc.zip` 和同名 `.sha256` 文件；`Source code` 是源码压缩包，不是应用安装包。
+2. 将两个文件放在同一目录，在终端进入该目录并运行下面的命令核对 SHA-256。以 `0.1.0` 为例，成功时显示 `OK`：
 
-可在下载目录检查 ZIP 是否与附带校验值一致：
+   ```bash
+   shasum -a 256 -c Codex-Meter-0.1.0-macos-arm64-adhoc.zip.sha256
+   ```
 
-```bash
-shasum -a 256 -c Codex-Meter-0.1.0-macos-arm64-adhoc.zip.sha256
-```
+3. 双击 ZIP 解压，将 `Codex Meter.app` 拖入「应用程序」（Applications）文件夹。
+4. 从「应用程序」中打开 `Codex Meter.app`。如果 macOS 提示无法验证应用，按下一节操作。
+
+### 首次打开被 macOS 阻止时
+
+以下步骤适用于你已确认从本仓库 Releases 下载、校验通过的安装包：
+
+1. 在「未打开 Codex Meter」或「Apple 无法验证」的提示中点击「完成」（或关闭提示）。
+2. 打开「系统设置」→「隐私与安全性」，向下滚动到「安全性」，找到 Codex Meter 被阻止的提示。
+3. 点击「仍要打开」（英文系统为 `Open Anyway`），在后续提示中确认「打开」，并按要求使用密码或 Touch ID 授权。
+4. macOS 会为该应用保存例外，之后通常可以直接打开。
+
+如果没有看到「仍要打开」，先从「应用程序」再次尝试打开该应用，再返回「隐私与安全性」查看。具体按钮名称可能随 macOS 版本略有差异，参见 [Apple 官方打开步骤](https://support.apple.com/zh-cn/102445)。
 
 ### 从源码构建
 
@@ -106,7 +119,7 @@ open "dist/Codex Meter.app"
 
 **下载后被系统阻止打开？**
 
-检查 Release 标注的签名状态，优先使用已公证包或自行构建。对于你已确认来源可信的应用，按系统「隐私与安全性」中的提示处理。参见 [Apple 的 Gatekeeper 说明](https://developer.apple.com/developer-id/)。
+当前免费 ZIP 采用临时签名，未经 Apple 公证。对于从本仓库 Releases 下载并校验通过的包，按[首次打开被 macOS 阻止时](#首次打开被-macos-阻止时)的步骤，在「系统设置」→「隐私与安全性」中点击「仍要打开」。安装和使用无需付费开发者账号。
 
 **如何卸载和清理设置？**
 
